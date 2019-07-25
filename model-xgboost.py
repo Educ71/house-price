@@ -3,6 +3,8 @@ import xgboost as xgb
 import numpy as np
 import matplotlib.pyplot as plt
 import math
+import pandas_profiling
+from sklearn.model_selection import train_test_split
 
 train = pd.read_csv('train.csv')
 
@@ -16,134 +18,178 @@ newdf = pd.concat([train, test], axis=0).reset_index(drop=True)
 
 newdf['MSSubClass'] = newdf['MSSubClass'].apply(lambda x: 'SC{}'.format(x))
 newdf['GarageYrBlt'] = newdf['GarageYrBlt'].apply(lambda x: 2007 if x == 2207 else x)
-cols = newdf.select_dtypes(include=[np.number]).columns.values
-newdf[cols] = newdf[cols].fillna(0)
+colnums = newdf.select_dtypes(include=[np.number]).columns.values
+newdf[colnums] = newdf[colnums].fillna(0)
+colcats = newdf.select_dtypes(include=[np.object]).columns.values
+newdf[colcats] = newdf[colcats].fillna('None')
 
-# bins = [-1, 20, 40, 60, 80, 100, np.inf]
-# labels = '0to19 20to39 40to59 60to79 80to99 gt100'.split()
+# newdf.profile_report().to_file('profile_completo_bef.html')
 
-# newdf['LotFrontage'] = pd.cut(newdf['LotFrontage'], bins, labels=labels)
-
-# bins = [1000, 3000, 5000, 7000, 9000, 11000, np.inf]
-# labels = '1kto3k 3kto5k 5kto7k 7kto9k 9kto11k gt11k'.split()
-
-# newdf['LotArea'] = pd.cut(newdf['LotArea'], bins, labels=labels)
-
-# bins = [-1, 50, 100, 150, 200, np.inf]
-# labels = '0to50 51to100 101to150 151to200 gt200'.split()
-
-# newdf['MasVnrArea'] = pd.cut(newdf['MasVnrArea'], bins, labels=labels)
-
-# bins = [-1, 150, 300, 450, 600, np.inf]
-# labels = '0to150 151to300 301to450 451to600 gt600'.split()
-
-# newdf['BsmtFinSF'] = newdf['BsmtFinSF1'] + newdf['BsmtFinSF2']
-
-# newdf['BsmtFinSF'] = pd.cut(newdf['BsmtFinSF'], bins, labels=labels)
-
-# bins = [-1, 200, 400, 600, 800, 1000, np.inf]
-# labels = '0to200 201to400 401to600 601to800 801to1000 gt1000'.split()
-
-# newdf['BsmtUnfSF'] = pd.cut(newdf['BsmtUnfSF'], bins, labels=labels)
-
-# bins = [300, 800, 1300, 1800, np.inf]
-# labels = '300to800 801to1300 1301to1800 gt1800'.split()
-
-# newdf['1stFlrSF'] = pd.cut(newdf['1stFlrSF'], bins, labels=labels)
-
-# bins = [-1, 300, 600, 900, 1200, np.inf]
-# labels = '0to300 301to600 601to900 901to1200 gt1200'.split()
-
-# newdf['2ndFlrSF'] = pd.cut(newdf['2ndFlrSF'], bins, labels=labels)
-
-# bins = [300, 800, 1300, 1800, 2300, np.inf]
-# labels = '300to800 801to1300 1301to1800 1801to2300 gt2300'.split()
-
-# newdf['GrLivArea'] = pd.cut(newdf['GrLivArea'], bins, labels=labels)
-
-# bins = [-1, 200, 400, 600, 800, np.inf]
-# labels = '0to200 201to400 401to600 601to800 gt800'.split()
-
-# newdf['GarageArea'] = pd.cut(newdf['GarageArea'], bins, labels=labels)
-
-# bins = [-1, 50, 100, 150, 200, 250, np.inf]
-# labels = '0to50 51to100 101to150 151to200 201to250 gt250'.split()
-
-# newdf['WoodDeckSF'] = pd.cut(newdf['WoodDeckSF'], bins, labels=labels)
-# 
+newdf['HasAlley'] = newdf['Alley'].apply(lambda x: 0 if x == 'None' else 1)
 
 newdf['BsmtFinSF'] = newdf['BsmtFinSF1'] + newdf['BsmtFinSF2']
 
-newdf.drop(['BsmtFinSF1', 'BsmtFinSF2'], axis=1, inplace=True)
+newdf['HasPorch'] = newdf['OpenPorchSF'] + newdf['EnclosedPorch'] + newdf['3SsnPorch'] + newdf['ScreenPorch']
 
-colnums = ('LotFrontage LotArea MasVnrArea BsmtFinSF BsmtUnfSF 1stFlrSF 2ndFlrSF GrLivArea GarageArea WoodDeckSF').split()
-for col in colnums:
-    newdf[col] = pd.cut(newdf[col], 5, ['Div{}'.format(x+1) for x in range(5)])
+newdf['HasPorch'] = newdf['HasPorch'].apply(lambda x: 1 if x > 0 else 0)
 
-col_list = ('LotShape LandSlope ExterQual ExterCond BsmtQual BsmtCond BsmtExposure HeatingQC CentralAir '
-'KitchenQual FireplaceQu GarageFinish GarageQual GarageCond PavedDrive PoolQC').split()
-# 'LotFrontage LotArea MasVnrArea BsmtFinSF BsmtUnfSF 1stFlrSF 2ndFlrSF GrLivArea GarageArea WoodDeckSF').split()
+newdf['HasMasVnr'] = newdf['MasVnrArea'].apply(lambda x: 1 if x > 0 else 0)
+
+newdf['HasFireplace'] = newdf['Fireplaces'].apply(lambda x: 1 if x > 0 else 0)
+
+newdf['Has2ndFlr'] = newdf['2ndFlrSF'].apply(lambda x: 1 if x > 0 else 0)
 
 mapping = [{'Reg': 3, 'IR1': 2, 'IR2': 1, 'IR3': 0},
             {'Gtl': 2, 'Mod': 1, 'Sev': 0},
             {'Ex': 4, 'Gd': 3, 'TA': 2, 'Fa': 1, 'Po': 0},
             {'Ex': 4, 'Gd': 3, 'TA': 2, 'Fa': 1, 'Po': 0},
-            {'Ex': 5, 'Gd': 4, 'TA': 3, 'Fa': 2, 'Po': 1, 'NA': 0},
-            {'Ex': 5, 'Gd': 4, 'TA': 3, 'Fa': 2, 'Po': 1, 'NA': 0},
-            {'Gd': 4, 'Av': 3, 'Mn': 2, 'No': 1, 'NA': 0},
+            {'Ex': 5, 'Gd': 4, 'TA': 3, 'Fa': 2, 'Po': 1, 'None': 0},
+            {'Ex': 5, 'Gd': 4, 'TA': 3, 'Fa': 2, 'Po': 1, 'None': 0},
+            {'Gd': 4, 'Av': 3, 'Mn': 2, 'No': 1, 'None': 0},
             {'Ex': 4, 'Gd': 3, 'TA': 2, 'Fa': 1, 'Po': 0},
-            {'N': 0, 'Y': 1},
+            # {'N': 0, 'Y': 1},
             {'Ex': 4, 'Gd': 3, 'TA': 2, 'Fa': 1, 'Po': 0},
-            {'Ex': 5, 'Gd': 4, 'TA': 3, 'Fa': 2, 'Po': 1, 'NA': 0},
-            {'Fin': 3, 'RFn': 2, 'Unf': 1, 'NA': 0},
-            {'Ex': 5, 'Gd': 4, 'TA': 3, 'Fa': 2, 'Po': 1, 'NA': 0},
-            {'Ex': 5, 'Gd': 4, 'TA': 3, 'Fa': 2, 'Po': 1, 'NA': 0},
-            {'Y': 2, 'P': 1, 'N': 0},
-            {'Ex': 5, 'Gd': 4, 'TA': 3, 'Fa': 2, 'Po': 1, 'NA': 0}]
-            # {'0to19': 0, '20to39': 1, '40to59': 2, '60to79': 3, '80to99': 4, 'gt100': 5},
-            # {'1kto3k': 0, '3kto5k': 1, '5kto7k': 2, '7kto9k': 3, '9kto11k': 4, 'gt11k': 5},
-            # {'0to50': 0, '51to100': 1, '101to150': 2, '151to200': 3, 'gt200': 4},
-            # {'0to150': 0, '151to300': 1, '301to450': 2, '451to600': 3, 'gt600': 4},
-            # {'0to200': 0, '201to400': 1, '401to600': 2, '601to800': 3, '801to1000': 4, 'gt1000': 5},
-            # {'300to800': 0, '801to1300': 1, '1301to1800': 2, 'gt1800': 3},
-            # {'0to300': 0, '301to600': 1, '601to900': 2, '901to1200': 3, 'gt1200': 4},
-            # {'300to800': 0, '801to1300': 1, '1301to1800': 2, '1801to2300': 3, 'gt2300': 4},
-            # {'0to200': 0, '201to400': 1, '401to600': 2, '601to800': 3, 'gt800': 4},
-            # {'0to50': 0, '51to100': 1, '101to150': 2, '151to200': 3, '201to250': 4, 'gt250': 5}]
+            {'Ex': 5, 'Gd': 4, 'TA': 3, 'Fa': 2, 'Po': 1, 'None': 0},
+            {'Fin': 3, 'RFn': 2, 'Unf': 1, 'None': 0},
+            {'Ex': 5, 'Gd': 4, 'TA': 3, 'Fa': 2, 'Po': 1, 'None': 0},
+            {'Y': 2, 'P': 1, 'N': 0}]
 
+bins = [-1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100, np.inf]
+labels = ['{}to{}'.format(x, x+5) for x in range(0, 100, 5)] + ['gt100']
 
+labs = {labels[value]: value for value in range(len(labels))}
+mapping.append(labs)
+
+newdf['LotFrontage'] = pd.cut(newdf['LotFrontage'], bins, labels=labels)
+
+bins = [x for x in range(1000, 11001, 500)] + [np.inf]
+labels = ['{}kto{}k'.format(x/10, (x+5)/10) for x in range(10, 110, 5)] + ['gt11k']
+
+labs = {labels[value]: value for value in range(len(labels))}
+mapping.append(labs)
+
+newdf['LotArea'] = pd.cut(newdf['LotArea'], bins, labels=labels)
+
+bins = [-1] + [x for x in range(20, 650, 20)] + [np.inf]
+labels = ['{}to{}'.format(x, x+20) for x in range(0, 640, 20)] + ['gt640']
+
+labs = {labels[value]: value for value in range(len(labels))}
+mapping.append(labs)
+
+newdf['BsmtFinSF'] = newdf['BsmtFinSF1'] + newdf['BsmtFinSF2']
+
+newdf['BsmtFinSF'] = pd.cut(newdf['BsmtFinSF'], bins, labels=labels)
+
+bins = [-1] + [x for x in range(40, 1000, 40)] + [np.inf]
+labels = ['{}to{}'.format(x, x+40) for x in range(40, 1000, 40)] + ['gt1000']
+
+labs = {labels[value]: value for value in range(len(labels))}
+mapping.append(labs)
+
+newdf['BsmtUnfSF'] = pd.cut(newdf['BsmtUnfSF'], bins, labels=labels)
+
+bins = [-1] + [x for x in range(50, 1250, 50)] + [np.inf]
+labels = ['{}to{}'.format(x, x+40) for x in range(50, 1250, 50)] + ['gt1000']
+
+labs = {labels[value]: value for value in range(len(labels))}
+mapping.append(labs)
+
+newdf['TotalBsmtSF'] = pd.cut(newdf['TotalBsmtSF'], bins, labels=labels)
+
+bins = [x for x in range(300, 1801, 50)] + [np.inf]
+labels = ["{}to{}".format(x, x+50) for x in range(300, 1800, 50)] + ['gt1800']
+
+labs = {labels[value]: value for value in range(len(labels))}
+mapping.append(labs)
+
+newdf['1stFlrSF'] = pd.cut(newdf['1stFlrSF'], bins, labels=labels)
+
+# bins = [-1] + [x for x in range(50, 1500, 50)] + [np.inf]
+# labels = ["{}to{}".format(x, x+50) for x in range(0, 1420, 50)] + ['gt1450']
+
+# labs = {labels[value]: value for value in range(len(labels))}
+# mapping.append(labs)
+
+# newdf['2ndFlrSF'] = pd.cut(newdf['2ndFlrSF'], bins, labels=labels)
+
+bins = [x for x in range(300, 2301, 75)] + [np.inf]
+labels = ["{}to{}".format(x, x+75) for x in range(300, 2250, 75)] + ['gt2250']
+
+labs = {labels[value]: value for value in range(len(labels))}
+mapping.append(labs)
+
+newdf['GrLivArea'] = pd.cut(newdf['GrLivArea'], bins, labels=labels)
+
+bins = [-1] + [x for x in range(25, 801, 25)] + [np.inf]
+labels = ["{}to{}".format(x, x+25) for x in range(0, 800, 25)] + ['gt800']
+
+labs = {labels[value]: value for value in range(len(labels))}
+mapping.append(labs)
+
+newdf['GarageArea'] = pd.cut(newdf['GarageArea'], bins, labels=labels)
+
+# bins = [-1] + [x for x in range(20, 250, 20)] + [np.inf]
+# labels = '0to50 51to100 101to150 151to200 201to250 gt250'.split()
+
+# newdf['WoodDeckSF'] = pd.cut(newdf['WoodDeckSF'], bins, labels=labels)
+
+newdf['HasWoodDeck'] = newdf['WoodDeckSF'].apply(lambda x: 1 if x > 0 else 0)
+
+newdf.drop(['BsmtFinSF1', 'BsmtFinSF2', 'BsmtFinType2'], axis=1, inplace=True)
+
+# colnums = ('LotFrontage LotArea MasVnrArea BsmtFinSF BsmtUnfSF 1stFlrSF 2ndFlrSF GrLivArea GarageArea WoodDeckSF').split()
+# for col in colnums:
+#     newdf[col] = pd.cut(newdf[col], 5, ['Div{}'.format(x+1) for x in range(5)])
+
+col_list = ('LotShape LandSlope ExterQual ExterCond BsmtQual BsmtCond BsmtExposure HeatingQC '#CentralAir '
+            'KitchenQual FireplaceQu GarageFinish GarageCond PavedDrive' #).split()
+            ' LotFrontage LotArea BsmtFinSF BsmtUnfSF TotalBsmtSF 1stFlrSF GrLivArea GarageArea').split()
 
 for i in range(len(col_list)):
     newdf[col_list[i]] = newdf[col_list[i]].map(mapping[i])
 
+newdf.drop(['GarageQual', 'Street', 'GarageYrBlt', 'Alley', 'OpenPorchSF', 'EnclosedPorch', '3SsnPorch', 'ScreenPorch', 'PoolQC', 'RoofMatl', 'Utilities', 'PoolArea', 'LowQualFinSF', 'MasVnrArea', 'MasVnrType', 'Condition2', 'Heating', 'MiscFeature', 'MiscVal', 'Fireplaces', 'FireplaceQu', 'HasAlley', 'Functional', 'BsmtHalfBath', 'WoodDeckSF', '2ndFlrSF', 'CentralAir'], axis=1, inplace=True)
+newdf.profile_report().to_file('profile_completo_af.html')
 newdf = pd.get_dummies(newdf)
+newdf.columns = [x.replace(" ", "_") for x in newdf.columns.values]
 
 trlen = len(train)
 
 train = newdf[:trlen]
 
-dtrain = xgb.DMatrix(train.drop('Id', axis=1), train_label)
+X_train, X_test, y_train, y_test = train_test_split(train, train_label, test_size=0.3, random_state=50)
 
-test = newdf[trlen:]
+dtrain = xgb.DMatrix(X_train.drop('Id', axis=1), y_train)
+dtest = xgb.DMatrix(X_test.drop('Id', axis=1), y_test)
 
-label = pd.read_csv('sample_submission.csv')['SalePrice']#.apply(lambda x: math.log10(x))
+def rmsle(pred: np.ndarray, dtrain: xgb.DMatrix):
+    y = dtrain.get_label()
+    pred[pred < -1] = -1 + 1e-6
+    error = float(np.sqrt(np.sum(np.power(np.log1p(y) - np.log1p(pred), 2)) / len(y)))
+    return 'MyRMSLE', error
 
-dtest = xgb.DMatrix(test.drop('Id', axis=1), label)
-
-param = {'max_depth': 3, 'objective': 'reg:squarederror'}
+param = {'max_depth': 2, 'objective': 'reg:squarederror', 'disable_default_eval_metric': 1}
 param['nthread'] = 4
-param['eval_metric'] = ['rmse', 'mae']
+# param['eval_metric'] = "rmsle"
 
 evallist = [(dtest, 'eval'), (dtrain, 'train')]
 
 num_round=300
 
-model = xgb.train(param, dtrain, num_round, evallist)
+# xgb_model = xgb.XGBRegressor()
+# xgb.cv(param, dtrain, num_round, nfold=5, feval=rmsle, callbacks=[xgb.callback.print_evaluation(show_stdv=True)])
+xgb_model = xgb.train(param, dtrain, num_round, evallist, feval=rmsle)
 
-print(model.predict(dtest))
+test = newdf[trlen:]
+
+label = pd.read_csv('sample_submission.csv')['SalePrice']#.apply(lambda x: math.log10(x))
+
+dsub = xgb.DMatrix(test.drop('Id', axis=1), label)
+
+print(xgb_model.predict(dsub))
 sub = pd.DataFrame()
 sub['Id'] = test.Id
-sub['SalePrice'] = model.predict(dtest)
+sub['SalePrice'] = xgb_model.predict(dsub)
 sub.to_csv('submission_test.csv', index=False)
 
 # cols = ['LotFrontage', 'LotArea', 'OverallQual', 'OverallCond', 'YearBuilt', 'YearRemodAdd', 
