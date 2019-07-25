@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import math
 import pandas_profiling
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
 
 train = pd.read_csv('train.csv')
 
@@ -24,6 +25,8 @@ colcats = newdf.select_dtypes(include=[np.object]).columns.values
 newdf[colcats] = newdf[colcats].fillna('None')
 
 # newdf.profile_report().to_file('profile_completo_bef.html')
+
+newdf['BsmtExposure'] = newdf['BsmtExposure'].apply(lambda x: 'None' if x == 'No' else x)
 
 newdf['HasAlley'] = newdf['Alley'].apply(lambda x: 0 if x == 'None' else 1)
 
@@ -45,7 +48,7 @@ mapping = [{'Reg': 3, 'IR1': 2, 'IR2': 1, 'IR3': 0},
             {'Ex': 4, 'Gd': 3, 'TA': 2, 'Fa': 1, 'Po': 0},
             {'Ex': 5, 'Gd': 4, 'TA': 3, 'Fa': 2, 'Po': 1, 'None': 0},
             {'Ex': 5, 'Gd': 4, 'TA': 3, 'Fa': 2, 'Po': 1, 'None': 0},
-            {'Gd': 4, 'Av': 3, 'Mn': 2, 'No': 1, 'None': 0},
+            {'Gd': 3, 'Av': 2, 'Mn': 1, 'None': 0},
             {'Ex': 4, 'Gd': 3, 'TA': 2, 'Fa': 1, 'Po': 0},
             # {'N': 0, 'Y': 1},
             {'Ex': 4, 'Gd': 3, 'TA': 2, 'Fa': 1, 'Po': 0},
@@ -145,8 +148,9 @@ col_list = ('LotShape LandSlope ExterQual ExterCond BsmtQual BsmtCond BsmtExposu
             'KitchenQual FireplaceQu GarageFinish GarageCond PavedDrive' #).split()
             ' LotFrontage LotArea BsmtFinSF BsmtUnfSF TotalBsmtSF 1stFlrSF GrLivArea GarageArea').split()
 
+
 for i in range(len(col_list)):
-    newdf[col_list[i]] = newdf[col_list[i]].map(mapping[i])
+    newdf[col_list[i]] = newdf[col_list[i]].map(mapping[i]).astype(np.int)
 
 newdf.drop(['GarageQual', 'Street', 'GarageYrBlt', 'Alley', 'OpenPorchSF', 'EnclosedPorch', '3SsnPorch', 'ScreenPorch', 'PoolQC', 'RoofMatl', 'Utilities', 'PoolArea', 'LowQualFinSF', 'MasVnrArea', 'MasVnrType', 'Condition2', 'Heating', 'MiscFeature', 'MiscVal', 'Fireplaces', 'FireplaceQu', 'HasAlley', 'Functional', 'BsmtHalfBath', 'WoodDeckSF', '2ndFlrSF', 'CentralAir'], axis=1, inplace=True)
 newdf.profile_report().to_file('profile_completo_af.html')
