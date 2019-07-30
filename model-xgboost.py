@@ -151,12 +151,6 @@ train = df[:trlen]
 
 dtrain = xgb.DMatrix(train.drop('Id', axis=1), train_label)
 
-test = df[trlen:]
-
-label = pd.read_csv('sample_submission.csv')['SalePrice']
-
-dtest = xgb.DMatrix(test.drop('Id', axis=1), label)
-
 def rmsle(pred: np.ndarray, dtrain: xgb.DMatrix):
     y = dtrain.get_label()
     pred[pred < -1] = -1 + 1e-6
@@ -166,14 +160,18 @@ def rmsle(pred: np.ndarray, dtrain: xgb.DMatrix):
 param = {'max_depth': 2, 'objective': 'reg:squarederror', 'disable_default_eval_metric': 1}
 param['nthread'] = 4
 
-evallist = [(dtest, 'eval'), (dtrain, 'train')]
+evallist = [(dtrain, 'train')]
 
 num_round=150
 
 xgb_model = xgb.train(param, dtrain, num_round, evallist, feval=rmsle)
 
+test = df[trlen:]
+
+dtest = xgb.DMatrix(test.drop('Id', axis=1))
+
 # Saving the result in a file to submit to the competition
 sub = pd.DataFrame()
-sub['Id'] = id_test
+sub['Id'] = test.Id
 sub['SalePrice'] = xgb_model.predict(dtest)
 sub.to_csv('submission_test.csv', index=False)
