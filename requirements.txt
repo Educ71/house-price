@@ -1,4 +1,4 @@
-numpy==1.16.4
+numpy==1.22.0
 pandas==0.25.0
 pandas-profiling==2.2.0
 xgboost==0.90
